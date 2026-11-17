@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import {
   Play,
@@ -12,7 +13,6 @@ import {
   BarChart3,
   Pause,
   StepForward,
-  FastForward,
 } from 'lucide-react';
 
 import { generateProcesses } from './engine/processGenerator.js';
@@ -50,12 +50,27 @@ function Simulator({
   const [localMinBurst, setLocalMinBurst] = useState(simContext?.config?.minBurst ?? 2);
   const [localMaxBurst, setLocalMaxBurst] = useState(simContext?.config?.maxBurst ?? 10);
   const [localFixedBurst, setLocalFixedBurst] = useState(simContext?.config?.fixedBurst ?? 5);
+
   const [inputMode, setInputMode] = useState('generated');
-  const [manualRows, setManualRows] = useState([{ pid: 'P1', arrivalTime: 0, burstTime: 5 }, { pid: 'P2', arrivalTime: 1, burstTime: 4 }, { pid: 'P3', arrivalTime: 2, burstTime: 3 }]);
+
+  const [manualRows, setManualRows] = useState([
+    { pid: 'P1', arrivalTime: 0, burstTime: 5 },
+    { pid: 'P2', arrivalTime: 1, burstTime: 4 },
+    { pid: 'P3', arrivalTime: 2, burstTime: 3 },
+  ]);
+
   const [quanta, setQuanta] = useState([3, 3, 3]);
   const [q2Policy, setQ2Policy] = useState('FCFS');
   const [demoteOnExpiry, setDemoteOnExpiry] = useState(true);
   const [preemptive, setPreemptive] = useState(true);
+
+  // Starvation prevention settings
+  const [enableAging, setEnableAging] = useState(true);
+  const [agingThreshold, setAgingThreshold] = useState(10);
+  const [enablePriorityBoost, setEnablePriorityBoost] = useState(true);
+  const [priorityBoostInterval, setPriorityBoostInterval] = useState(20);
+
+  // Gantt chart playback
   const [playClock, setPlayClock] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [playSpeed, setPlaySpeed] = useState(1);
@@ -117,8 +132,10 @@ function Simulator({
 
   const setResult = (val, mode) => {
     if (onResultChange) onResultChange(val);
+
     if (simContext) {
       simContext.setSimulationResult(val);
+
       if (val !== null && mode) {
         if (mode === 'fixed') simContext.setFixedResult(val);
         else simContext.setRandomResult(val);
@@ -130,6 +147,7 @@ function Simulator({
 
   function handleRun() {
     setError('');
+    setPlaying(false);
     setResult(null, null);
 
     const pCount = Number(count);
@@ -139,56 +157,72 @@ function Simulator({
     const pFixedBurst = Number(fixedBurst);
     const pMinBurst = Number(minBurst);
     const pMaxBurst = Number(maxBurst);
+    const pAgingThreshold = Number(agingThreshold);
+    const pBoostInterval = Number(priorityBoostInterval);
 
-    // Specific, helpful validation messages
     if (!Number.isInteger(pCount) || pCount < 1) {
       setError('Number of processes must be a positive integer (at least 1).');
       return;
     }
+
     if (pCount > 100) {
       setError('Number of processes cannot exceed 100.');
       return;
     }
+
     if (!Number.isInteger(pDuration) || pDuration < 1) {
       setError('Simulation duration must be a positive integer (at least 1).');
       return;
     }
+
     if (!Number.isInteger(pMinArrival) || pMinArrival < 0) {
-      setError('Minimum arrival time must be a non-negative integer (0 or greater).');
+      setError('Minimum arrival time must be a non-negative integer.');
       return;
     }
-    if (!Number.isInteger(pMaxArrival) || pMaxArrival < 0) {
-      setError('Maximum arrival time must be a non-negative integer (0 or greater).');
-      return;
-    }
-    if (pMaxArrival < pMinArrival) {
-      setError('Maximum arrival time cannot be less than minimum arrival time.');
+
+    if (!Number.isInteger(pMaxArrival) || pMaxArrival < pMinArrival) {
+      setError('Maximum arrival time must be greater than or equal to minimum arrival time.');
       return;
     }
 
     if (burstMode === 'fixed') {
       if (!Number.isInteger(pFixedBurst) || pFixedBurst < 1) {
-        setError('Fixed burst time must be a positive integer (at least 1).');
+        setError('Fixed burst time must be a positive integer.');
         return;
       }
     } else {
       if (!Number.isInteger(pMinBurst) || pMinBurst < 1) {
-        setError('Minimum burst time must be a positive integer (at least 1).');
+        setError('Minimum burst time must be a positive integer.');
         return;
       }
-      if (!Number.isInteger(pMaxBurst) || pMaxBurst < 1) {
-        setError('Maximum burst time must be a positive integer (at least 1).');
-        return;
-      }
-      if (pMaxBurst < pMinBurst) {
-        setError('Maximum burst time cannot be less than minimum burst time.');
+
+      if (!Number.isInteger(pMaxBurst) || pMaxBurst < pMinBurst) {
+        setError('Maximum burst time must be greater than or equal to minimum burst time.');
         return;
       }
     }
 
+    if (!Number.isInteger(pAgingThreshold) || pAgingThreshold < 1) {
+      setError('Aging threshold must be a positive integer.');
+      return;
+    }
+
+    if (
+      enablePriorityBoost &&
+      (!Number.isInteger(pBoostInterval) || pBoostInterval < 1)
+    ) {
+      setError('Priority boost interval must be a positive integer.');
+      return;
+    }
+
     try {
       const processes = inputMode === 'manual'
-        ? manualRows.map((row) => ({ pid: row.pid, arrivalTime: Number(row.arrivalTime), burstTime: Number(row.burstTime), remainingTime: Number(row.burstTime) }))
+        ? manualRows.map((row) => ({
+            pid: row.pid,
+            arrivalTime: Number(row.arrivalTime),
+            burstTime: Number(row.burstTime),
+            remainingTime: Number(row.burstTime),
+          }))
         : generateProcesses({
             count: pCount,
             minArrival: pMinArrival,
@@ -199,20 +233,60 @@ function Simulator({
             maxBurst: pMaxBurst,
           });
 
-      if (!processes.length) throw new Error('Add at least one process.');
-      if (processes.some((p) => !Number.isInteger(Number(p.arrivalTime)) || Number(p.arrivalTime) < 0 || !Number.isInteger(Number(p.burstTime)) || Number(p.burstTime) < 1)) throw new Error('Each process needs a valid arrival time (0 or more) and burst time (1 or more).');
+      if (!processes.length) {
+        throw new Error('Add at least one process.');
+      }
+
+      if (
+        processes.some((p) =>
+          !p.pid ||
+          !Number.isInteger(Number(p.arrivalTime)) ||
+          Number(p.arrivalTime) < 0 ||
+          !Number.isInteger(Number(p.burstTime)) ||
+          Number(p.burstTime) < 1
+        )
+      ) {
+        throw new Error('Each process needs a valid PID, arrival time and burst time.');
+      }
+
       const simulation = runMLFQ(processes, {
         duration: pDuration,
         quantumByQueue: quanta,
         demoteOnQuantumExpiry: demoteOnExpiry,
         q2Policy,
         preemptive,
+
+        // Aging
+        enableAging,
+        agingThreshold: pAgingThreshold,
+
+        // Periodic priority boosting
+        priorityBoostInterval: enablePriorityBoost
+          ? pBoostInterval
+          : null,
       });
 
-      const taggedSimulation = { ...simulation, burstMode, inputMode, config: { quanta, q2Policy, demoteOnExpiry, preemptive } };
+      const taggedSimulation = {
+        ...simulation,
+        burstMode,
+        inputMode,
+        config: {
+          quanta,
+          q2Policy,
+          demoteOnExpiry,
+          preemptive,
+          enableAging,
+          agingThreshold: pAgingThreshold,
+          enablePriorityBoost,
+          priorityBoostInterval: enablePriorityBoost
+            ? pBoostInterval
+            : null,
+        },
+      };
+
       setPlayClock(0);
-      setPlaying(true);
       setResult(taggedSimulation, burstMode);
+      setPlaying(true);
     } catch (err) {
       console.error(err);
       setError(
@@ -226,42 +300,69 @@ function Simulator({
     setPlayClock(0);
     setPlaying(false);
     setError('');
+
     if (simContext) {
       simContext.setFixedResult(null);
       simContext.setRandomResult(null);
     }
+
     if (onReset) onReset();
   }
 
   useEffect(() => {
     if (!playing || !result) return undefined;
-    const maxTime = Number(result.currentTime ?? result.totalSimulatedTime ?? duration);
-    const timer = setInterval(() => setPlayClock((t) => {
-      const next = Math.min(maxTime, t + 0.1 * playSpeed);
-      if (next >= maxTime) setPlaying(false);
-      return next;
-    }), 50);
+
+    const maxTime = Number(
+      result.currentTime ?? result.totalSimulatedTime ?? duration
+    );
+
+    const timer = setInterval(() => {
+      setPlayClock((t) => {
+        const next = Math.min(maxTime, t + 0.1 * playSpeed);
+
+        if (next >= maxTime) {
+          setPlaying(false);
+        }
+
+        return next;
+      });
+    }, 50);
+
     return () => clearInterval(timer);
   }, [playing, result, playSpeed, duration]);
 
   const processes = result?.processes ?? [];
   const allGantt = result?.gantt ?? [];
-  const gantt = allGantt.filter((seg) => Number(seg.start) < playClock).map((seg) => ({ ...seg, end: Math.min(Number(seg.end), playClock) })).filter((seg) => Number(seg.end) > Number(seg.start));
+
+  const gantt = allGantt
+    .filter((seg) => Number(seg.start) < playClock)
+    .map((seg) => ({
+      ...seg,
+      end: Math.min(Number(seg.end), playClock),
+    }))
+    .filter((seg) => Number(seg.end) > Number(seg.start));
 
   const completedProcesses = processes.filter(
     (process) => process.state?.toUpperCase() === 'COMPLETED'
   );
+
   const incompleteCount =
     result?.incompleteCount ?? (processes.length - completedProcesses.length);
 
   const formatMetric = (value) =>
     Number.isFinite(value) ? Number(value).toFixed(2) : '—';
 
-  const totalTime = result ? Math.max(1, Number(result.currentTime ?? result.totalSimulatedTime ?? duration)) : 0;
+  const totalTime = result
+    ? Math.max(
+        1,
+        Number(result.currentTime ?? result.totalSimulatedTime ?? duration)
+      )
+    : 0;
 
-  // Collect unique boundary timestamps for timeline ruler
   const timelineTicks = gantt.length > 0
-    ? Array.from(new Set([0, ...gantt.map((segment) => Number(segment.end))])).sort((a, b) => a - b)
+    ? Array.from(
+        new Set([0, ...gantt.map((segment) => Number(segment.end))])
+      ).sort((a, b) => a - b)
     : [];
 
   return (
@@ -391,42 +492,275 @@ function Simulator({
           )}
         </div>
 
+        {/* PROCESS INPUT */}
         <div className="sim-full-width sim-extra-config">
           <div className="sim-field-title">Process input</div>
+
           <div className="sim-mode-buttons">
-            <button type="button" className={inputMode === 'generated' ? 'selected' : ''} onClick={() => setInputMode('generated')}>Fixed / random generation</button>
-            <button type="button" className={inputMode === 'manual' ? 'selected' : ''} onClick={() => setInputMode('manual')}>Enter each process manually</button>
+            <button
+              type="button"
+              className={inputMode === 'generated' ? 'selected' : ''}
+              onClick={() => setInputMode('generated')}
+            >
+              Fixed / random generation
+            </button>
+
+            <button
+              type="button"
+              className={inputMode === 'manual' ? 'selected' : ''}
+              onClick={() => setInputMode('manual')}
+            >
+              Enter each process manually
+            </button>
           </div>
-          {inputMode === 'manual' && <div className="sim-manual-table">
-            <div className="sim-manual-head"><span>PID</span><span>Arrival time</span><span>Burst time</span><span /></div>
-            {manualRows.map((row, i) => <div className="sim-manual-row" key={row.pid}>
-              <strong>{row.pid}</strong>
-              <input aria-label={`${row.pid} arrival time`} type="number" min="0" value={row.arrivalTime} onChange={(e) => setManualRows((rows) => rows.map((r, j) => j === i ? { ...r, arrivalTime: e.target.value } : r))} />
-              <input aria-label={`${row.pid} burst time`} type="number" min="1" value={row.burstTime} onChange={(e) => setManualRows((rows) => rows.map((r, j) => j === i ? { ...r, burstTime: e.target.value } : r))} />
-              <button type="button" disabled={manualRows.length <= 1} onClick={() => setManualRows((rows) => rows.filter((_, j) => j !== i))}>Remove</button>
-            </div>)}
-            <button type="button" className="sim-add-process" onClick={() => setManualRows((rows) => [...rows, { pid: `P${rows.length + 1}`, arrivalTime: 0, burstTime: 5 }])} disabled={manualRows.length >= 100}>+ Add process</button>
-          </div>}
+
+          {inputMode === 'manual' && (
+            <div className="sim-manual-table">
+              <div className="sim-manual-head">
+                <span>PID</span>
+                <span>Arrival time</span>
+                <span>Burst time</span>
+                <span />
+              </div>
+
+              {manualRows.map((row, i) => (
+                <div className="sim-manual-row" key={row.pid}>
+                  <strong>{row.pid}</strong>
+
+                  <input
+                    aria-label={`${row.pid} arrival time`}
+                    type="number"
+                    min="0"
+                    value={row.arrivalTime}
+                    onChange={(e) =>
+                      setManualRows((rows) =>
+                        rows.map((r, j) =>
+                          j === i
+                            ? { ...r, arrivalTime: e.target.value }
+                            : r
+                        )
+                      )
+                    }
+                  />
+
+                  <input
+                    aria-label={`${row.pid} burst time`}
+                    type="number"
+                    min="1"
+                    value={row.burstTime}
+                    onChange={(e) =>
+                      setManualRows((rows) =>
+                        rows.map((r, j) =>
+                          j === i
+                            ? { ...r, burstTime: e.target.value }
+                            : r
+                        )
+                      )
+                    }
+                  />
+
+                  <button
+                    type="button"
+                    disabled={manualRows.length <= 1}
+                    onClick={() =>
+                      setManualRows((rows) =>
+                        rows.filter((_, j) => j !== i)
+                      )
+                    }
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+
+              <button
+                type="button"
+                className="sim-add-process"
+                onClick={() =>
+                  setManualRows((rows) => [
+                    ...rows,
+                    {
+                      pid: `P${rows.length + 1}`,
+                      arrivalTime: 0,
+                      burstTime: 5,
+                    },
+                  ])
+                }
+                disabled={manualRows.length >= 100}
+              >
+                + Add process
+              </button>
+            </div>
+          )}
         </div>
 
+        {/* MLFQ POLICIES */}
         <div className="sim-full-width sim-mlfq-policy">
           <div className="sim-field-title">MLFQ queue policies</div>
-          <p className="sim-policy-help">New processes enter Q0. The CPU always selects the highest-priority non-empty queue.</p>
+
+          <p className="sim-policy-help">
+            New processes enter Q0. The CPU always selects the highest-priority
+            non-empty queue.
+          </p>
+
           <div className="sim-queue-policy-grid">
-            {[0, 1, 2].map((level) => <div className={`sim-queue-policy q${level}`} key={level}>
-              <div><strong>Q{level}</strong><small>{['Highest priority', 'Medium priority', 'Lowest priority'][level]}</small></div>
-              <label>Algorithm<select value={level === 2 ? q2Policy : 'RR'} disabled={level !== 2} onChange={(e) => setQ2Policy(e.target.value)}><option value="RR">Round Robin</option><option value="FCFS">FCFS</option></select></label>
-              <label>Quantum<input type="number" min="1" disabled={level === 2 && q2Policy === 'FCFS'} value={quanta[level]} onChange={(e) => setQuanta((q) => q.map((v, i) => i === level ? Math.max(1, Number(e.target.value)) : v))} /></label>
-            </div>)}
+            {[0, 1, 2].map((level) => (
+              <div
+                className={`sim-queue-policy q${level}`}
+                key={level}
+              >
+                <div>
+                  <strong>Q{level}</strong>
+                  <small>
+                    {[
+                      'Highest priority',
+                      'Medium priority',
+                      'Lowest priority',
+                    ][level]}
+                  </small>
+                </div>
+
+                <label>
+                  Algorithm
+                  <select
+                    value={level === 2 ? q2Policy : 'RR'}
+                    disabled={level !== 2}
+                    onChange={(e) => setQ2Policy(e.target.value)}
+                  >
+                    <option value="RR">Round Robin</option>
+                    <option value="FCFS">FCFS</option>
+                  </select>
+                </label>
+
+                <label>
+                  Quantum
+                  <input
+                    type="number"
+                    min="1"
+                    disabled={level === 2 && q2Policy === 'FCFS'}
+                    value={quanta[level]}
+                    onChange={(e) =>
+                      setQuanta((q) =>
+                        q.map((v, i) =>
+                          i === level
+                            ? Math.max(1, Number(e.target.value))
+                            : v
+                        )
+                      )
+                    }
+                  />
+                </label>
+              </div>
+            ))}
           </div>
-          <label className="sim-policy-toggle"><input type="checkbox" checked={demoteOnExpiry} onChange={(e) => setDemoteOnExpiry(e.target.checked)} /><span><b>Demote on quantum expiry</b><small>When enabled, an unfinished process moves down one priority level after using its full quantum. Q2 remains the lowest queue.</small></span></label>
-          <label className="sim-policy-toggle"><input type="checkbox" checked={preemptive} onChange={(e) => setPreemptive(e.target.checked)} /><span><b>Priority preemption</b><small>A newly arriving Q0 process can interrupt a process currently running in Q1 or Q2.</small></span></label>
+
+          <label className="sim-policy-toggle">
+            <input
+              type="checkbox"
+              checked={demoteOnExpiry}
+              onChange={(e) => setDemoteOnExpiry(e.target.checked)}
+            />
+            <span>
+              <b>Demote on quantum expiry</b>
+              <small>
+                When enabled, an unfinished process moves down one priority
+                level after using its full quantum. Q2 remains the lowest queue.
+              </small>
+            </span>
+          </label>
+
+          <label className="sim-policy-toggle">
+            <input
+              type="checkbox"
+              checked={preemptive}
+              onChange={(e) => setPreemptive(e.target.checked)}
+            />
+            <span>
+              <b>Priority preemption</b>
+              <small>
+                A newly arriving higher-priority process can interrupt a
+                process currently running in a lower-priority queue.
+              </small>
+            </span>
+          </label>
+
+          {/* AGING AND PRIORITY BOOST */}
+          <div className="sim-field-title" style={{ marginTop: '24px' }}>
+            Starvation prevention
+          </div>
+
+          <p className="sim-policy-help">
+            Enable aging and periodic priority boosting to reduce the chance
+            that processes in lower-priority queues wait indefinitely.
+          </p>
+
+          <label className="sim-policy-toggle">
+            <input
+              type="checkbox"
+              checked={enableAging}
+              onChange={(e) => setEnableAging(e.target.checked)}
+            />
+            <span>
+              <b>Enable Aging</b>
+              <small>
+                A process waiting in Q1 or Q2 is promoted one priority level
+                when its waiting time reaches the aging threshold.
+              </small>
+            </span>
+          </label>
+
+          {enableAging && (
+            <label className="sim-starvation-input">
+              Aging threshold (time units)
+              <input
+                type="number"
+                min="1"
+                value={agingThreshold}
+                onChange={(e) => setAgingThreshold(e.target.value)}
+              />
+            </label>
+          )}
+
+          <label className="sim-policy-toggle">
+            <input
+              type="checkbox"
+              checked={enablePriorityBoost}
+              onChange={(e) => setEnablePriorityBoost(e.target.checked)}
+            />
+            <span>
+              <b>Enable Periodic Priority Boost</b>
+              <small>
+                At each configured interval, all unfinished processes are
+                moved back to the highest-priority queue Q0.
+              </small>
+            </span>
+          </label>
+
+          {enablePriorityBoost && (
+            <label className="sim-starvation-input">
+              Priority boost interval (time units)
+              <input
+                type="number"
+                min="1"
+                value={priorityBoostInterval}
+                onChange={(e) =>
+                  setPriorityBoostInterval(e.target.value)
+                }
+              />
+            </label>
+          )}
         </div>
 
         <div className="sim-config-info">
-          <span><Layers3 size={18} /> Multilevel Feedback Queue (Q0, Q1, Q2)</span>
-          <span><Clock3 size={18} /> Time quantum: 3 units (Fixed across queues)</span>
-          <span><Activity size={18} /> 3 priority levels (Preemptive by priority)</span>
+          <span>
+            <Layers3 size={18} /> Multilevel Feedback Queue (Q0, Q1, Q2)
+          </span>
+          <span>
+            <Clock3 size={18} /> Time quantum: 3 units (default)
+          </span>
+          <span>
+            <Activity size={18} /> 3 priority levels
+          </span>
         </div>
 
         <div className="sim-actions">
@@ -452,7 +786,6 @@ function Simulator({
       {/* RESULTS */}
       {result && (
         <>
-          {/* STAT CARDS: 6 METRICS */}
           <section className="sim-stats-grid">
             <StatCard
               label="Total processes"
@@ -502,18 +835,70 @@ function Simulator({
             <div className="sim-panel-heading">
               <div>
                 <h2>CPU execution timeline</h2>
-                <p>One continuous Gantt timeline with proportional intervals and queue levels</p>
+                <p>
+                  One continuous Gantt timeline with proportional intervals
+                  and queue levels
+                </p>
               </div>
+
               <span className="sim-chart-label">GANTT CHART</span>
             </div>
 
             <div className="sim-playback-controls">
-              <strong>Simulation time: {playClock.toFixed(1)} / {totalTime}</strong>
-              <button type="button" onClick={() => setPlaying((v) => !v)} disabled={!result || playClock >= totalTime}>{playing ? <><Pause size={15}/> Pause</> : <><Play size={15}/> {playClock > 0 ? 'Resume' : 'Play'}</>}</button>
-              <button type="button" onClick={() => { setPlayClock(0); setPlaying(false); }}>Restart</button>
-              <button type="button" onClick={() => setPlayClock(Math.min(totalTime, playClock + 1))} disabled={!result || playClock >= totalTime}><StepForward size={15}/> Step</button>
-              <label>Speed <select value={playSpeed} onChange={(e) => setPlaySpeed(Number(e.target.value))}><option value={0.5}>0.5×</option><option value={1}>1×</option><option value={2}>2×</option><option value={4}>4×</option></select></label>
+              <strong>
+                Simulation time: {playClock.toFixed(1)} / {totalTime}
+              </strong>
+
+              <button
+                type="button"
+                onClick={() => setPlaying((v) => !v)}
+                disabled={!result || playClock >= totalTime}
+              >
+                {playing ? (
+                  <>
+                    <Pause size={15} /> Pause
+                  </>
+                ) : (
+                  <>
+                    <Play size={15} /> {playClock > 0 ? 'Resume' : 'Play'}
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setPlayClock(0);
+                  setPlaying(false);
+                }}
+              >
+                Restart
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setPlayClock(Math.min(totalTime, playClock + 1))
+                }
+                disabled={!result || playClock >= totalTime}
+              >
+                <StepForward size={15} /> Step
+              </button>
+
+              <label>
+                Speed
+                <select
+                  value={playSpeed}
+                  onChange={(e) => setPlaySpeed(Number(e.target.value))}
+                >
+                  <option value={0.5}>0.5×</option>
+                  <option value={1}>1×</option>
+                  <option value={2}>2×</option>
+                  <option value={4}>4×</option>
+                </select>
+              </label>
             </div>
+
             {gantt.length > 0 ? (
               <div className="sim-gantt-wrapper">
                 <div className="sim-gantt-axis">
@@ -532,42 +917,56 @@ function Simulator({
                       {gantt.map((segment, index) => {
                         const start = Number(segment.start);
                         const end = Number(segment.end);
-                        const duration = Math.max(0, end - start);
+                        const segmentDuration = Math.max(0, end - start);
                         const isIdle = segment.pid === 'IDLE';
-                        const queueLabel = isIdle ? 'Idle' : `Q${segment.queueLevel ?? 0}`;
+                        const queueLabel = isIdle
+                          ? 'Idle'
+                          : `Q${segment.queueLevel ?? 0}`;
 
                         return (
                           <div
                             key={`${segment.pid}-${start}-${end}-${index}`}
                             className={`sim-gantt-block ${
-                              isIdle ? 'idle' : `q${segment.queueLevel ?? 0}`
+                              isIdle
+                                ? 'idle'
+                                : `q${segment.queueLevel ?? 0}`
                             }`}
                             style={{
-                              flexGrow: duration,
+                              flexGrow: segmentDuration,
                               flexShrink: 0,
-                              flexBasis: `${duration}px`,
+                              flexBasis: `${segmentDuration}px`,
                             }}
                             title={
                               isIdle
-                                ? `CPU IDLE | Time: ${start}–${end} (${duration} unit${duration > 1 ? 's' : ''})`
-                                : `${segment.pid} | Queue: Q${segment.queueLevel ?? 0} | Time: ${start}–${end} (${duration} unit${duration > 1 ? 's' : ''})`
+                                ? `CPU IDLE | Time: ${start}–${end} (${segmentDuration} unit${segmentDuration > 1 ? 's' : ''})`
+                                : `${segment.pid} | Queue: Q${segment.queueLevel ?? 0} | Time: ${start}–${end} (${segmentDuration} unit${segmentDuration > 1 ? 's' : ''})`
                             }
                           >
-                            <span className="sim-gantt-pid">{segment.pid}</span>
-                            <span className="sim-gantt-queue">{queueLabel}</span>
-                            <span className="sim-gantt-time">{start}–{end}</span>
+                            <span className="sim-gantt-pid">
+                              {segment.pid}
+                            </span>
+                            <span className="sim-gantt-queue">
+                              {queueLabel}
+                            </span>
+                            <span className="sim-gantt-time">
+                              {start}–{end}
+                            </span>
                           </div>
                         );
                       })}
                     </div>
 
-                    {/* Proportional timestamp ruler ticks */}
                     <div className="sim-gantt-ruler">
                       {timelineTicks.map((t, idx) => {
-                        const percent = totalTime > 0 ? (t / totalTime) * 100 : 0;
+                        const percent =
+                          totalTime > 0 ? (t / totalTime) * 100 : 0;
+
                         let alignClass = 'tick-mid';
+
                         if (idx === 0) alignClass = 'tick-start';
-                        else if (idx === timelineTicks.length - 1) alignClass = 'tick-end';
+                        else if (idx === timelineTicks.length - 1) {
+                          alignClass = 'tick-end';
+                        }
 
                         return (
                           <div
@@ -589,9 +988,9 @@ function Simulator({
             )}
 
             <div className="sim-legend">
-              <span><i className="q0" /> Q0 (Priority 0 · Quantum = 3)</span>
-              <span><i className="q1" /> Q1 (Priority 1 · Quantum = 3)</span>
-              <span><i className="q2" /> Q2 (Priority 2 · Quantum = 3)</span>
+              <span><i className="q0" /> Q0</span>
+              <span><i className="q1" /> Q1</span>
+              <span><i className="q2" /> Q2</span>
               <span><i className="idle" /> CPU Idle</span>
             </div>
           </section>
@@ -601,7 +1000,10 @@ function Simulator({
             <div className="sim-panel-heading">
               <div>
                 <h2>Process details</h2>
-                <p>Individual process parameters, execution timestamps, and performance metrics</p>
+                <p>
+                  Individual process parameters, execution timestamps,
+                  and performance metrics
+                </p>
               </div>
             </div>
 
@@ -623,7 +1025,8 @@ function Simulator({
 
                 <tbody>
                   {processes.map((process) => {
-                    const isCompleted = process.state?.toUpperCase() === 'COMPLETED';
+                    const isCompleted =
+                      process.state?.toUpperCase() === 'COMPLETED';
 
                     return (
                       <tr key={process.pid}>
@@ -641,7 +1044,9 @@ function Simulator({
                           {isCompleted ? process.waitingTime : '—'}
                         </td>
                         <td>
-                          {process.state === 'NEW' ? '—' : `Q${process.queueLevel ?? 0}`}
+                          {process.state === 'NEW'
+                            ? '—'
+                            : `Q${process.queueLevel ?? 0}`}
                         </td>
                         <td>
                           <span
@@ -660,8 +1065,9 @@ function Simulator({
             </div>
 
             <p className="sim-note">
-              Formulas: Turnaround Time (TAT) = CT – AT, Waiting Time (WT) = TAT – BT.
-              Average waiting time and average turnaround time are calculated using completed processes only.
+              Formulas: Turnaround Time (TAT) = CT – AT, Waiting Time (WT) =
+              TAT – BT. Average waiting time and average turnaround time are
+              calculated using completed processes only.
             </p>
           </section>
         </>

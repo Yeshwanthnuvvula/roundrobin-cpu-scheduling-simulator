@@ -1,6 +1,8 @@
-/* ================================
-   ROUNDROBIN SIMULATOR
-================================ */
+
+/* =========================================
+   ROUNDROBIN — CPU SCHEDULING SIMULATOR
+   Original dark-green / lime theme
+========================================= */
 
 .simulator-page {
   width: 100%;
@@ -610,6 +612,414 @@
   margin: 18px 0 0;
 }
 
+/* MANUAL PROCESS INPUT */
+
+.sim-extra-config,
+.sim-mlfq-policy {
+  margin-top: 26px;
+  padding-top: 22px;
+  border-top: 1px solid #344139;
+}
+
+.sim-manual-table {
+  margin-top: 14px;
+  border: 1px solid #344139;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.sim-manual-head,
+.sim-manual-row {
+  display: grid;
+  grid-template-columns: 70px 1fr 1fr 90px;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 14px;
+}
+
+.sim-manual-head {
+  background: #151b17;
+  color: #8f9990;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.sim-manual-row {
+  border-top: 1px solid #2d3931;
+  color: #c1f36a;
+}
+
+.sim-manual-row input,
+.sim-queue-policy input,
+.sim-queue-policy select,
+.sim-playback-controls select {
+  width: 100%;
+  min-width: 0;
+  background: #151b17;
+  border: 1px solid #3b4940;
+  border-radius: 7px;
+  color: #eef0e9;
+  padding: 9px 10px;
+}
+
+.sim-manual-row input:focus,
+.sim-queue-policy input:focus,
+.sim-queue-policy select:focus,
+.sim-playback-controls select:focus {
+  outline: none;
+  border-color: #c1f36a;
+  box-shadow: 0 0 0 3px rgba(193, 243, 106, 0.1);
+}
+
+.sim-manual-row button,
+.sim-add-process {
+  border: 1px solid #3b4940;
+  border-radius: 7px;
+  background: transparent;
+  color: #aab4aa;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.sim-manual-row button:hover,
+.sim-add-process:hover {
+  border-color: #c1f36a;
+  color: #c1f36a;
+}
+
+.sim-manual-row button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.sim-add-process {
+  margin: 12px;
+}
+
+/* MLFQ QUEUE POLICIES */
+
+.sim-policy-help {
+  margin: -14px 0 16px;
+  color: #929b92;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.sim-queue-policy-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sim-queue-policy {
+  border: 1px solid #344139;
+  border-radius: 10px;
+  padding: 14px;
+  background: #171e19;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  transition: border-color 0.2s, transform 0.2s;
+}
+
+.sim-queue-policy:hover {
+  border-color: #596c5e;
+  transform: translateY(-2px);
+}
+
+.sim-queue-policy.q0 {
+  border-top: 3px solid #c1f36a;
+}
+
+.sim-queue-policy.q1 {
+  border-top: 3px solid #82bba3;
+}
+
+.sim-queue-policy.q2 {
+  border-top: 3px solid #83abc4;
+}
+
+.sim-queue-policy > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.sim-queue-policy strong {
+  font-size: 17px;
+  color: #eef0e9;
+}
+
+.sim-queue-policy small {
+  display: block;
+  color: #929b92;
+  font-size: 11px;
+}
+
+.sim-queue-policy label {
+  display: grid;
+  gap: 6px;
+  color: #aab4aa;
+  font-size: 12px;
+}
+
+.sim-queue-policy input:disabled {
+  opacity: 0.35;
+}
+
+/* POLICY TOGGLES */
+
+.sim-policy-toggle {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-top: 12px;
+  padding: 13px;
+  border: 1px solid #344139;
+  border-radius: 9px;
+  background: #171e19;
+  color: #cbd2ca;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.sim-policy-toggle:hover {
+  border-color: #647b68;
+  background: #1c261f;
+}
+
+.sim-policy-toggle input {
+  margin-top: 4px;
+  accent-color: #c1f36a;
+  flex-shrink: 0;
+}
+
+.sim-policy-toggle small {
+  display: block;
+  color: #929b92;
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: 4px;
+}
+
+/* =========================================
+   STARVATION PREVENTION
+   AGING + PERIODIC PRIORITY BOOST
+========================================= */
+
+.sim-starvation-config {
+  margin-top: 26px;
+  padding-top: 24px;
+  border-top: 1px solid #344139;
+}
+
+.sim-starvation-heading {
+  margin-bottom: 16px;
+}
+
+.sim-starvation-heading h3 {
+  margin: 0 0 7px;
+  color: #eef0e9;
+  font-size: 17px;
+  font-weight: 650;
+}
+
+.sim-starvation-heading p {
+  margin: 0;
+  color: #929b92;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.sim-starvation-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.sim-starvation-card {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid #344139;
+  border-radius: 11px;
+  background: #171e19;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.sim-starvation-card:hover {
+  border-color: #647b68;
+  background: #1b251e;
+}
+
+.sim-starvation-card.aging {
+  border-top: 3px solid #82bba3;
+}
+
+.sim-starvation-card.boost {
+  border-top: 3px solid #c1f36a;
+}
+
+.sim-starvation-card h4 {
+  color: #eef0e9;
+  font-size: 15px;
+  margin: 0 0 7px;
+}
+
+.sim-starvation-card p {
+  color: #929b92;
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 0 0 15px;
+}
+
+.sim-starvation-card label {
+  display: grid;
+  gap: 8px;
+  color: #aab4aa;
+  font-size: 12px;
+  margin-top: 12px;
+}
+
+.sim-starvation-card input[type="number"] {
+  width: 100%;
+  height: 43px;
+  padding: 0 12px;
+  background: #141a16;
+  border: 1px solid #3b4940;
+  border-radius: 7px;
+  color: #eef0e9;
+  outline: none;
+  font-family: var(--font-mono, monospace);
+  font-size: 14px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.sim-starvation-card input[type="number"]:focus {
+  border-color: #c1f36a;
+  box-shadow: 0 0 0 3px rgba(193, 243, 106, 0.1);
+}
+
+.sim-starvation-card input:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.sim-starvation-toggle {
+  display: flex;
+  gap: 11px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  background: #141a16;
+  border: 1px solid #344139;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #d0d8ce;
+  transition: border-color 0.2s;
+}
+
+.sim-starvation-toggle:hover {
+  border-color: #82bba3;
+}
+
+.sim-starvation-toggle input {
+  margin-top: 4px;
+  accent-color: #c1f36a;
+  flex-shrink: 0;
+}
+
+.sim-starvation-toggle strong {
+  display: block;
+  color: #eef0e9;
+  font-size: 13px;
+}
+
+.sim-starvation-toggle small {
+  display: block;
+  color: #929b92;
+  font-size: 11px;
+  line-height: 1.5;
+  margin-top: 4px;
+}
+
+.sim-starvation-info {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(130, 187, 163, 0.25);
+  border-radius: 8px;
+  background: rgba(130, 187, 163, 0.07);
+  color: #aab9ad;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.sim-starvation-info strong {
+  color: #82bba3;
+}
+
+/* LIVE PLAYBACK CONTROLS */
+
+.sim-playback-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 18px;
+  padding: 12px;
+  border: 1px solid #344139;
+  border-radius: 10px;
+  background: #171e19;
+}
+
+.sim-playback-controls strong {
+  margin-right: auto;
+  color: #c1f36a;
+  font-family: var(--font-mono, monospace);
+  font-size: 13px;
+}
+
+.sim-playback-controls button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid #435247;
+  border-radius: 7px;
+  background: #202a23;
+  color: #e7eee5;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.sim-playback-controls button:hover:not(:disabled) {
+  border-color: #c1f36a;
+  color: #c1f36a;
+}
+
+.sim-playback-controls button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.sim-playback-controls label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #aab4aa;
+  font-size: 12px;
+}
+
+.sim-playback-controls select {
+  width: auto;
+  padding: 7px;
+}
+
 /* RESPONSIVE */
 
 @media (max-width: 1300px) {
@@ -625,6 +1035,10 @@
 
   .sim-stats-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sim-queue-policy-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -672,23 +1086,36 @@
   .sim-panel-heading h2 {
     font-size: 19px;
   }
-}
 
-/* Additional process editor, queue policy and live playback controls */
-.sim-extra-config,.sim-mlfq-policy{margin-top:26px;padding-top:22px;border-top:1px solid #344139}
-.sim-manual-table{margin-top:14px;border:1px solid #344139;border-radius:10px;overflow:hidden}
-.sim-manual-head,.sim-manual-row{display:grid;grid-template-columns:70px 1fr 1fr 90px;gap:12px;align-items:center;padding:10px 14px}
-.sim-manual-head{background:#151b17;color:#8f9990;font-size:11px;text-transform:uppercase;letter-spacing:1px}
-.sim-manual-row{border-top:1px solid #2d3931;color:#c1f36a}
-.sim-manual-row input,.sim-queue-policy input,.sim-queue-policy select,.sim-playback-controls select{width:100%;min-width:0;background:#151b17;border:1px solid #3b4940;border-radius:7px;color:#eef0e9;padding:9px 10px}
-.sim-manual-row button,.sim-add-process{border:1px solid #3b4940;border-radius:7px;background:transparent;color:#aab4aa;padding:8px 10px;cursor:pointer}
-.sim-manual-row button:disabled{opacity:.35;cursor:not-allowed}
-.sim-add-process{margin:12px}
-.sim-policy-help{margin:-14px 0 16px;color:#929b92;font-size:13px}
-.sim-queue-policy-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-.sim-queue-policy{border:1px solid #344139;border-radius:10px;padding:14px;background:#171e19;display:grid;gap:12px}
-.sim-queue-policy.q0{border-top:3px solid #c1f36a}.sim-queue-policy.q1{border-top:3px solid #82bba3}.sim-queue-policy.q2{border-top:3px solid #83abc4}
-.sim-queue-policy>div{display:flex;justify-content:space-between;align-items:center;gap:8px}.sim-queue-policy strong{font-size:17px;color:#eef0e9}.sim-queue-policy small{display:block;color:#929b92;font-size:11px}.sim-queue-policy label{display:grid;gap:6px;color:#aab4aa;font-size:12px}.sim-queue-policy input:disabled{opacity:.35}
-.sim-policy-toggle{display:flex;gap:12px;align-items:flex-start;margin-top:12px;padding:13px;border:1px solid #344139;border-radius:9px;background:#171e19;color:#cbd2ca;cursor:pointer}.sim-policy-toggle input{margin-top:4px;accent-color:#c1f36a}.sim-policy-toggle small{display:block;color:#929b92;font-size:12px;line-height:1.5;margin-top:4px}
-.sim-playback-controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:4px 0 18px;padding:12px;border:1px solid #344139;border-radius:10px;background:#171e19}.sim-playback-controls strong{margin-right:auto;color:#c1f36a;font-family:var(--font-mono,monospace);font-size:13px}.sim-playback-controls button{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border:1px solid #435247;border-radius:7px;background:#202a23;color:#e7eee5;cursor:pointer}.sim-playback-controls button:disabled{opacity:.4;cursor:not-allowed}.sim-playback-controls label{display:flex;align-items:center;gap:8px;color:#aab4aa;font-size:12px}.sim-playback-controls select{width:auto;padding:7px}
-@media(max-width:800px){.sim-queue-policy-grid{grid-template-columns:1fr}.sim-manual-head,.sim-manual-row{grid-template-columns:45px 1fr 1fr 70px;gap:6px;padding:8px}.sim-playback-controls strong{width:100%}}
+  .sim-manual-head,
+  .sim-manual-row {
+    grid-template-columns: 45px 1fr 1fr 70px;
+    gap: 6px;
+    padding: 8px;
+  }
+
+  .sim-playback-controls strong {
+    width: 100%;
+  }
+
+  .sim-starvation-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sim-starvation-card {
+    padding: 15px;
+  }
+
+  .sim-gantt-track {
+    min-height: 72px;
+  }
+
+  .sim-gantt-pid {
+    font-size: 11px;
+  }
+
+  .sim-gantt-queue,
+  .sim-gantt-time {
+    font-size: 9px;
+  }
+}
