@@ -1,16 +1,19 @@
 
 /**
- * ROUNDROBIN - MLFQ CPU Scheduling Engine
+ * ROUNDROBIN - Multilevel Feedback Queue (MLFQ) CPU Scheduler
  *
- * Provisional scheduling policy:
- * - Three priority queues.
- * - Default quantum = 3 units for every queue.
+ * Features:
+ * - Three priority queues: Q0, Q1, Q2.
  * - New processes enter Q0.
- * - Higher-priority queues execute first.
- * - Processes are demoted after using their full quantum.
- * - Higher-priority arrivals preempt lower-priority processes.
- * - Preempted processes preserve their unused quantum.
+ * - Round Robin scheduling in Q0 and Q1.
+ * - Q2 supports RR or FCFS.
+ * - Default time quantum = 3 units.
+ * - Demotion after quantum expiry.
+ * - Higher-priority process preemption.
+ * - Aging to reduce starvation.
+ * - Periodic priority boosting to Q0.
  * - Simulation stops at the configured duration.
+ * - Metrics calculated for completed processes only.
  */
 
 export function runMLFQ(
@@ -21,8 +24,14 @@ export function runMLFQ(
     demoteOnQuantumExpiry = true,
     q2Policy = 'RR',
     preemptive = true,
+
+    // Starvation prevention settings
+    enableAging = true,
+    agingThreshold = 10,
+    priorityBoostInterval = 20,
   } = {}
 ) {
+
   // 1. Validate configuration
 
   if (!Number.isInteger(duration) || duration < 1) {
@@ -31,10 +40,25 @@ export function runMLFQ(
 
   if (
     !Array.isArray(quantumByQueue) ||
-    quantumByQueue.length < 1 ||
+    quantumByQueue.length !== 3 ||
     quantumByQueue.some(q => !Number.isInteger(q) || q < 1)
   ) {
-    throw new Error('Provide valid positive integer queue quanta.');
+    throw new Error('Provide three valid positive integer queue quanta.');
+  }
+
+  if (!['RR', 'FCFS'].includes(q2Policy)) {
+    throw new Error('Q2 policy must be RR or FCFS.');
+  }
+
+  if (!Number.isInteger(agingThreshold) || agingThreshold < 1) {
+    throw new Error('Aging threshold must be a positive integer.');
+  }
+
+  if (
+    priorityBoostInterval !== null &&
+    (!Number.isInteger(priorityBoostInterval) || priorityBoostInterval < 1)
+  ) {
+    throw new Error('Priority boost interval must be a positive integer or null.');
   }
 
   if (!Array.isArray(inputProcesses) || inputProcesses.length === 0) {
@@ -76,9 +100,10 @@ export function runMLFQ(
     queueLevel: 0,
     state: 'NEW',
     quantumRemaining: quantumByQueue[0],
+    readySince: null,
   }));
 
-  // 3. Initialize scheduling queues
+  // 3. Initialize ready queues
 
   const queueCount = quantumByQueue.length;
 
@@ -100,7 +125,32 @@ export function runMLFQ(
   let currentTime = 0;
   let executedTime = 0;
 
-  // 4. Record Gantt chart segments
+  let nextPriorityBoost =
+    priorityBoostInterval === null
+      ? Infinity
+      : priorityBoostInterval;
+
+  // 4. Queue helper
+
+  function enqueueProcess(process, level, front = false) {
+    process.queueLevel = level;
+    process.state = 'READY';
+    process.readySince = currentTime;
+
+    if (level === queueCount - 1 && q2Policy === 'FCFS') {
+      process.quantumRemaining = Infinity;
+    } else {
+      process.quantumRemaining = quantumByQueue[level];
+    }
+
+    if (front) {
+      readyQueues[level].unshift(process);
+    } else {
+      readyQueues[level].push(process);
+    }
+  }
+
+  // 5. Record Gantt chart segments
 
   function recordExecution(pid, start, end, queueLevel = null) {
     const last = gantt[gantt.length - 1];
@@ -122,7 +172,63 @@ export function runMLFQ(
     }
   }
 
-  // 5. Main scheduling loop
+  // 6. Aging mechanism
+
+  function applyAging() {
+    if (!enableAging) return;
+
+    // Q0 is already the highest-priority queue.
+    // Processes in Q1 and Q2 can move up one level.
+
+    for (let level = 1; level < queueCount; level++) {
+      for (let i = readyQueues[level].length - 1; i >= 0; i--) {
+        const process = readyQueues[level][i];
+
+        const waitingDuration =
+          currentTime - process.readySince;
+
+        if (waitingDuration >= agingThreshold) {
+          readyQueues[level].splice(i, 1);
+
+          // Promote one priority level.
+          enqueueProcess(process, level - 1);
+
+        }
+      }
+    }
+  }
+
+  // 7. Periodic priority boosting
+
+  function applyPriorityBoost() {
+    if (currentTime < nextPriorityBoost) return;
+
+    // Collect all waiting processes, preserving queue order.
+    const allWaitingProcesses = [];
+
+    for (let level = 0; level < queueCount; level++) {
+      allWaitingProcesses.push(...readyQueues[level]);
+      readyQueues[level] = [];
+    }
+
+    // Include the currently running process.
+    if (runningProcess) {
+      allWaitingProcesses.push(runningProcess);
+      runningProcess = null;
+    }
+
+    // Move every unfinished process to Q0.
+    for (const process of allWaitingProcesses) {
+      enqueueProcess(process, 0);
+    }
+
+    // Schedule the next boost.
+    while (nextPriorityBoost <= currentTime) {
+      nextPriorityBoost += priorityBoostInterval;
+    }
+  }
+
+  // 8. Main scheduling loop
 
   while (currentTime < duration) {
 
@@ -134,16 +240,15 @@ export function runMLFQ(
     ) {
       const process = arrivals[nextArrival];
 
-      process.state = 'READY';
-      process.queueLevel = 0;
-      process.quantumRemaining = quantumByQueue[0];
-
-      readyQueues[0].push(process);
-
+      enqueueProcess(process, 0);
       nextArrival++;
     }
 
-    // Check whether a higher-priority process has arrived.
+    // Apply aging and priority boosting.
+    applyAging();
+    applyPriorityBoost();
+
+    // Check higher-priority preemption.
 
     if (runningProcess && preemptive) {
       const higherPriorityReady = readyQueues
@@ -151,23 +256,27 @@ export function runMLFQ(
         .some(queue => queue.length > 0);
 
       if (higherPriorityReady) {
-        runningProcess.state = 'READY';
-
-        // Preserve unused quantum when preempted.
-        readyQueues[runningProcess.queueLevel]
-          .unshift(runningProcess);
-
+        const process = runningProcess;
         runningProcess = null;
+
+        // Preserve remaining quantum after preemption.
+        process.state = 'READY';
+        process.readySince = currentTime;
+
+        readyQueues[process.queueLevel].unshift(process);
       }
     }
 
-    // Select the highest-priority non-empty queue.
+    // Select highest-priority non-empty queue.
 
     if (!runningProcess) {
       for (let level = 0; level < queueCount; level++) {
         if (readyQueues[level].length > 0) {
           runningProcess = readyQueues[level].shift();
+
           runningProcess.state = 'RUNNING';
+          runningProcess.readySince = null;
+
           break;
         }
       }
@@ -186,7 +295,7 @@ export function runMLFQ(
       continue;
     }
 
-    // Record response time on first execution.
+    // Record first response time.
 
     if (runningProcess.responseTime === null) {
       runningProcess.responseTime =
@@ -203,7 +312,10 @@ export function runMLFQ(
     );
 
     runningProcess.remainingTime--;
-    runningProcess.quantumRemaining--;
+
+    if (runningProcess.quantumRemaining !== Infinity) {
+      runningProcess.quantumRemaining--;
+    }
 
     executedTime++;
     currentTime++;
@@ -222,46 +334,46 @@ export function runMLFQ(
         runningProcess.turnaroundTime -
         runningProcess.burstTime;
 
+      runningProcess.readySince = null;
       runningProcess = null;
+
       continue;
     }
 
-    // Quantum expiry and queue demotion.
+    // Quantum expiry and demotion.
 
     if (runningProcess.quantumRemaining === 0) {
-      const currentLevel = runningProcess.queueLevel;
+      const process = runningProcess;
+      const currentLevel = process.queueLevel;
+
+      runningProcess = null;
+
+      let nextLevel = currentLevel;
 
       if (
         demoteOnQuantumExpiry &&
         currentLevel < queueCount - 1
       ) {
-        runningProcess.queueLevel++;
+        nextLevel++;
       }
 
-      runningProcess.quantumRemaining =
-        (runningProcess.queueLevel === 2 && q2Policy === 'FCFS')
-          ? Number.POSITIVE_INFINITY
-          : quantumByQueue[runningProcess.queueLevel];
-
-      runningProcess.state = 'READY';
-
-      readyQueues[runningProcess.queueLevel]
-        .push(runningProcess);
-
-      runningProcess = null;
+      enqueueProcess(process, nextLevel);
     }
   }
 
-  // 6. Stop the running process cleanly at the time limit.
+  // 9. Preserve unfinished running process at simulation cutoff.
 
   if (runningProcess) {
-    runningProcess.state = 'READY';
+    const process = runningProcess;
+    runningProcess = null;
 
-    readyQueues[runningProcess.queueLevel]
-      .unshift(runningProcess);
+    process.state = 'READY';
+    process.readySince = currentTime;
+
+    readyQueues[process.queueLevel].unshift(process);
   }
 
-  // 7. Calculate metrics for completed processes only.
+  // 10. Calculate metrics for completed processes only.
 
   const completedProcesses = processes.filter(
     process => process.state === 'COMPLETED'
@@ -292,12 +404,14 @@ export function runMLFQ(
       ? totalTurnaroundTime / completedCount
       : 0;
 
-  const totalSimulatedTime = currentTime > 0 ? currentTime : duration;
+  const totalSimulatedTime = currentTime;
 
   const cpuUtilization =
-    totalSimulatedTime > 0 ? (executedTime / totalSimulatedTime) * 100 : 0;
+    totalSimulatedTime > 0
+      ? (executedTime / totalSimulatedTime) * 100
+      : 0;
 
-  // 8. Return simulation results.
+  // 11. Return simulation results.
 
   return {
     processes,
@@ -320,5 +434,13 @@ export function runMLFQ(
 
     cpuUtilization,
     executedTime,
+
+    // Additional information for the UI.
+    starvationPrevention: {
+      agingEnabled: enableAging,
+      agingThreshold,
+      priorityBoostEnabled: priorityBoostInterval !== null,
+      priorityBoostInterval,
+    },
   };
 }
