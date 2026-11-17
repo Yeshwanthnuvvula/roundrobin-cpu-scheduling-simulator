@@ -1,0 +1,336 @@
+/* ================================
+   ROUNDROBIN ANALYTICS PAGE
+================================ */
+
+.analytics-page {
+  width: 100%;
+  max-width: 1500px;
+  margin: 0 auto;
+  color: var(--text, #f0f2ec);
+  box-sizing: border-box;
+}
+
+/* ---- HEADER ---- */
+
+.analytics-header {
+  margin-bottom: 28px;
+}
+
+.analytics-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--accent, #c1f36a);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.analytics-header h1 {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text, #f0f2ec);
+  margin: 0 0 6px;
+  letter-spacing: -0.5px;
+}
+
+.analytics-header p {
+  font-size: 14px;
+  color: var(--text-secondary, #a0aaa2);
+  margin: 0;
+}
+
+/* ---- STAT CARDS ---- */
+
+.analytics-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 900px) {
+  .analytics-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 540px) {
+  .analytics-stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.analytics-stat-card {
+  background: var(--surface, #1b201d);
+  border: 1px solid var(--border, #303933);
+  border-radius: 9px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.analytics-stat-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-secondary, #a0aaa2);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.analytics-stat-top svg {
+  color: var(--muted, #727d74);
+  flex-shrink: 0;
+}
+
+.analytics-stat-value {
+  color: var(--text, #f0f2ec);
+  font-size: 27px;
+  font-weight: 700;
+  margin-top: 12px;
+  font-family: var(--font-mono, monospace);
+  letter-spacing: -0.5px;
+}
+
+.analytics-stat-detail {
+  font-size: 11px;
+  color: var(--muted, #727d74);
+  margin-top: 5px;
+}
+
+/* ---- PANELS ---- */
+
+.analytics-panel {
+  background: var(--surface, #1b201d);
+  border: 1px solid var(--border, #303933);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.analytics-panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.analytics-panel-heading h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text, #f0f2ec);
+  margin: 0 0 4px;
+}
+
+.analytics-panel-heading p {
+  font-size: 12px;
+  color: var(--text-secondary, #a0aaa2);
+  margin: 0;
+}
+
+.analytics-panel-tag {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--accent, #c1f36a);
+  background: rgba(193, 243, 106, 0.08);
+  border: 1px solid rgba(193, 243, 106, 0.18);
+  border-radius: 4px;
+  padding: 3px 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ---- CHART CONTAINER ---- */
+
+.analytics-chart-container {
+  width: 100%;
+  height: 300px;
+}
+
+.analytics-chart-container-sm {
+  width: 100%;
+  height: 240px;
+}
+
+/* Two-column layout for pie + grouped bar on same row */
+.analytics-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 800px) {
+  .analytics-two-col {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- COMPARISON TABLE (fixed vs random) ---- */
+
+.analytics-compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.analytics-compare-table th {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary, #a0aaa2);
+  text-align: left;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border, #303933);
+  background: rgba(255,255,255,0.02);
+}
+
+.analytics-compare-table th.align-right {
+  text-align: right;
+}
+
+.analytics-compare-table td {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border, #303933);
+  color: var(--text, #f0f2ec);
+  font-family: var(--font-mono, monospace);
+}
+
+.analytics-compare-table td.metric-label {
+  font-family: var(--font-sans, sans-serif);
+  color: var(--text-secondary, #a0aaa2);
+  font-size: 12px;
+}
+
+.analytics-compare-table td.align-right {
+  text-align: right;
+}
+
+.analytics-compare-table tr:last-child td {
+  border-bottom: none;
+}
+
+.compare-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  border-radius: 4px;
+  padding: 2px 7px;
+  margin-left: 6px;
+}
+
+.compare-badge.fixed {
+  background: rgba(130, 187, 163, 0.12);
+  color: #82bba3;
+  border: 1px solid rgba(130, 187, 163, 0.25);
+}
+
+.compare-badge.random {
+  background: rgba(131, 174, 199, 0.12);
+  color: #83aec7;
+  border: 1px solid rgba(131, 174, 199, 0.25);
+}
+
+/* ---- EMPTY STATE ---- */
+
+.analytics-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 80px 24px;
+  text-align: center;
+}
+
+.analytics-empty-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  border-radius: 14px;
+  background: rgba(193, 243, 106, 0.07);
+  border: 1px solid rgba(193, 243, 106, 0.15);
+  color: var(--accent, #c1f36a);
+}
+
+.analytics-empty h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text, #f0f2ec);
+  margin: 0;
+}
+
+.analytics-empty p {
+  font-size: 14px;
+  color: var(--text-secondary, #a0aaa2);
+  max-width: 400px;
+  margin: 0;
+  line-height: 1.6;
+}
+
+.analytics-empty-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* Primary button (reuse design from App.css) */
+.analytics-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--accent, #c1f36a);
+  color: #141715;
+  border: none;
+  border-radius: 7px;
+  padding: 10px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.analytics-btn-primary:hover {
+  opacity: 0.88;
+}
+
+/* ---- RECHARTS CUSTOM TOOLTIP ---- */
+
+.analytics-tooltip {
+  background: #1b221e;
+  border: 1px solid #344139;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: #eef0e9;
+  line-height: 1.6;
+}
+
+.analytics-tooltip-label {
+  color: #c1f36a;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+/* ---- FOOTER ---- */
+
+.analytics-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 0 4px;
+  font-size: 11px;
+  color: var(--muted, #727d74);
+  border-top: 1px solid var(--border, #303933);
+  margin-top: 10px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
